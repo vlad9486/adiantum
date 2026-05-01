@@ -1,5 +1,5 @@
 use poly1305::Poly1305;
-use cipher::{StreamCipher, KeyInit as _, generic_array::GenericArray};
+use cipher::{StreamCipher, KeyInit as _, array::Array};
 
 const STRIDE: usize = 2;
 const ROUNDS: usize = 4;
@@ -76,8 +76,8 @@ impl NhPoly1305 {
         kdf.apply_keystream(&mut key_nh);
 
         NhPoly1305 {
-            t: Poly1305::new(GenericArray::from_slice(&key_t)),
-            m: Poly1305::new(GenericArray::from_slice(&key_m)),
+            t: Poly1305::new(Array::slice_as_array(&key_t).unwrap()),
+            m: Poly1305::new(Array::slice_as_array(&key_m).unwrap()),
             key_nh,
         }
     }
@@ -141,8 +141,8 @@ fn nh_poly1305_test() {
     let mut key_st = [0; 0x20];
     key_st[..0x10].clone_from_slice(&key[..0x10]);
     let s = NhPoly1305 {
-        t: Poly1305::new(GenericArray::from_slice(&key_st)),
-        m: Poly1305::new(GenericArray::from_slice(&key_st)),
+        t: Poly1305::new(Array::slice_as_array(&key_st).unwrap()),
+        m: Poly1305::new(Array::slice_as_array(&key_st).unwrap()),
         key_nh: key[0x10..].try_into().unwrap(),
     };
     let actual = s.compute_m(&msg);

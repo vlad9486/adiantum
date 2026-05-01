@@ -5,7 +5,7 @@ use chacha20::{XChaCha12, XChaCha20, XChaCha8};
 use serde::Deserialize;
 
 use crate::{
-    cipher::{generic_array::GenericArray, KeyInit},
+    cipher::{array::Array, KeyInit},
     Cipher,
 };
 
@@ -40,7 +40,7 @@ macro_rules! test_cipher_impl {
                 let key = hex::decode(key_hex).unwrap();
                 assert_eq!(key.len(), 0x20);
 
-                let cipher = <$type>::new(GenericArray::from_slice(&key));
+                let cipher = <$type>::new(Array::slice_as_array(&key).unwrap());
 
                 let mut msg = hex::decode(plaintext_hex).unwrap();
                 assert!((0x10..=0x1000).contains(&msg.len()), "1 Cipher: {test_cipher}, description {description}, plaintext_hex: {plaintext_hex}, ciphertext_hex: {ciphertext_hex}, {i}");

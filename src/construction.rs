@@ -1,9 +1,10 @@
 use core::marker::PhantomData;
 
 use cipher::{
-    generic_array::GenericArray,
+    array::Array,
     typenum::{self, IsGreaterOrEqual, Unsigned},
-    BlockDecrypt, BlockEncrypt, BlockSizeUser, Key, KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
+    BlockCipherDecrypt, BlockCipherEncrypt, BlockSizeUser, Key, KeyInit, KeyIvInit, KeySizeUser,
+    StreamCipher,
 };
 use zeroize::Zeroize;
 
@@ -42,14 +43,14 @@ where
     BlockAlg: KeyInit,
 {
     fn new(key: &Key<Self>) -> Self {
-        let mut nonce = GenericArray::default();
+        let mut nonce = Array::default();
         nonce[0] = 1;
         let mut stream = StreamAlg::new(key, &nonce);
 
         Cipher {
             key: key.clone(),
             block: {
-                let mut key = GenericArray::default();
+                let mut key = Array::default();
                 stream.apply_keystream(&mut key);
                 BlockAlg::new(&key)
             },
@@ -65,7 +66,7 @@ where
     StreamAlg::IvSize: IsGreaterOrEqual<typenum::U16>,
 {
     fn stream(&self, r: &[u8; 0x10]) -> StreamAlg {
-        let mut nonce = GenericArray::default();
+        let mut nonce = Array::default();
         nonce[..0x10].clone_from_slice(r);
         if <StreamAlg::IvSize as Unsigned>::USIZE > 0x10 {
             nonce[0x10] = 1;
@@ -78,7 +79,7 @@ impl<StreamAlg, BlockAlg> Cipher<StreamAlg, BlockAlg>
 where
     StreamAlg: KeyIvInit + StreamCipher,
     StreamAlg::IvSize: IsGreaterOrEqual<typenum::U16>,
-    BlockAlg: BlockEncrypt + BlockSizeUser<BlockSize = typenum::U16>,
+    BlockAlg: BlockCipherEncrypt + BlockSizeUser<BlockSize = typenum::U16>,
 {
     /// `page` length must be in 0x10..=0x1000 range and divisible by 0x10
     /// `tweak` must be not greater 0x20
@@ -86,7 +87,8 @@ where
         let (l, r) = split_last_chunk_mut::<_, 0x10>(page).unwrap();
         let hash = self.hash.compute(l, tweak);
         *r = u128::from_le_bytes(*r).wrapping_add(hash).to_le_bytes();
-        self.block.encrypt_block(GenericArray::from_mut_slice(r));
+        self.block
+            .encrypt_block(Array::slice_as_mut_array(&mut *r).unwrap());
         self.stream(r).apply_keystream(l);
         let hash = self.hash.compute(l, tweak);
         *r = u128::from_le_bytes(*r).wrapping_sub(hash).to_le_bytes();
@@ -97,7 +99,7 @@ impl<StreamAlg, BlockAlg> Cipher<StreamAlg, BlockAlg>
 where
     StreamAlg: KeyIvInit + StreamCipher,
     StreamAlg::IvSize: IsGreaterOrEqual<typenum::U16>,
-    BlockAlg: BlockDecrypt + BlockSizeUser<BlockSize = typenum::U16>,
+    BlockAlg: BlockCipherDecrypt + BlockSizeUser<BlockSize = typenum::U16>,
 {
     /// `page` length must be in 0x10..=0x1000 and divisible by 0x10
     /// `tweak` must be not greater 0x20
@@ -106,7 +108,8 @@ where
         let hash = self.hash.compute(l, tweak);
         *r = u128::from_le_bytes(*r).wrapping_add(hash).to_le_bytes();
         self.stream(r).apply_keystream(l);
-        self.block.decrypt_block(GenericArray::from_mut_slice(r));
+        self.block
+            .decrypt_block(Array::slice_as_mut_array(&mut *r).unwrap());
         let hash = self.hash.compute(l, tweak);
         *r = u128::from_le_bytes(*r).wrapping_sub(hash).to_le_bytes();
     }
